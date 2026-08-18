@@ -51,10 +51,12 @@ export function createSdkClient(
     client.middlewareStack.add(
       (next: any) => async (args: any) => {
         // The SDK serializes input to args.input, we need to modify the body
-        // before it's sent. The body is in args.request.body as a string.
+        // before it's sent. The body can be a string or a byte array (Uint8Array).
         if (args.request?.body) {
           try {
-            const body = JSON.parse(args.request.body)
+            const rawBody = args.request.body
+            const bodyStr = typeof rawBody === 'string' ? rawBody : new TextDecoder().decode(rawBody)
+            const body = JSON.parse(bodyStr)
             body.additionalModelRequestFields = {
               output_config: {
                 effort

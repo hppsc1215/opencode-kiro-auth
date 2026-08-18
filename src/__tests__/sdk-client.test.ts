@@ -79,6 +79,34 @@ describe('SDK client', () => {
     clearSdkClientCache()
   })
 
+  test('handles Uint8Array request body explicitly when injecting effort', async () => {
+    clearSdkClientCache()
+
+    const client = createSdkClient(auth(), 'us-east-1', 'high')
+    let bodyTypeBeforeEffort: string | undefined
+
+    client.middlewareStack.add(
+      (next: any) => async (args: any) => {
+        if (args.request?.body) {
+          bodyTypeBeforeEffort = typeof args.request.body
+          if (typeof args.request.body === 'string') {
+            args.request.body = new TextEncoder().encode(args.request.body)
+          }
+        }
+        return next(args)
+      },
+      { step: 'build', name: 'convertBodyToUint8Array', priority: 'highest' }
+    )
+
+    const { body, request } = await captureRequest(client)
+
+    expect(bodyTypeBeforeEffort).toBe('string')
+    expect(body.additionalModelRequestFields.output_config.effort).toBe('high')
+    expect(Number(request.headers['content-length'])).toBe(Buffer.byteLength(request.bodyText))
+
+    clearSdkClientCache()
+  })
+
   test('omits additionalModelRequestFields when no effort is set', async () => {
     clearSdkClientCache()
 
