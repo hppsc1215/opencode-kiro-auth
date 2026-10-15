@@ -40,6 +40,32 @@ const HOP_BY_HOP_HEADERS = new Set([
   'content-encoding'
 ])
 
+function createInstanceHandle(instance: KiroServerInstance): KiroServerInstance {
+  let closedThisInstance = false
+  return {
+    ...instance,
+    close: async () => {
+      if (closedThisInstance) return
+      closedThisInstance = true
+      activeRefs = Math.max(0, activeRefs - 1)
+      if (activeRefs === 0 && instance.server) {
+        if (typeof (instance.server as any).closeAllConnections === 'function') {
+          ;(instance.server as any).closeAllConnections()
+        }
+        await new Promise<void>((resolve) => {
+          instance.server.close(() => {
+            if (activeInstance === instance) {
+              activeInstance = null
+              startingPromise = null
+            }
+            resolve()
+          })
+        })
+      }
+    }
+  }
+}
+
 export async function startKiroServer(options: KiroServerOptions): Promise<KiroServerInstance> {
   currentRequestHandler = options.requestHandler
   currentModelRegistry = options.modelRegistry
@@ -47,13 +73,13 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
 
   if (activeInstance && activeInstance.server) {
     activeRefs++
-    return activeInstance
+    return createInstanceHandle(activeInstance)
   }
 
   if (startingPromise) {
     const instance = await startingPromise
     activeRefs++
-    return instance
+    return createInstanceHandle(instance)
   }
 
   const preferredPort =
@@ -257,35 +283,16 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
 
     logger.info(`Kiro proxy server listening on http://127.0.0.1:${port}`)
 
-    let closedThisInstance = false
-    const instance: KiroServerInstance = {
+    const rawInstance: KiroServerInstance = {
       port,
       authToken: token,
       server,
-      close: async () => {
-        if (closedThisInstance) return
-        closedThisInstance = true
-        activeRefs = Math.max(0, activeRefs - 1)
-        if (activeRefs === 0 && server) {
-          if (typeof (server as any).closeAllConnections === 'function') {
-            ;(server as any).closeAllConnections()
-          }
-          await new Promise<void>((resolve) => {
-            server.close(() => {
-              if (activeInstance === instance) {
-                activeInstance = null
-                startingPromise = null
-              }
-              resolve()
-            })
-          })
-        }
-      }
+      close: async () => {}
     }
 
-    activeInstance = instance
+    activeInstance = rawInstance
     activeRefs = 1
-    return instance
+    return createInstanceHandle(rawInstance)
   })().catch((err) => {
     startingPromise = null
     throw err
