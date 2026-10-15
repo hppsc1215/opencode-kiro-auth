@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import http from 'node:http'
 import { AddressInfo } from 'node:net'
 import type { RequestHandler } from '../core/request/request-handler.js'
@@ -36,7 +35,6 @@ let startingPromise: Promise<KiroServerInstance> | null = null
 let currentRequestHandler: RequestHandler | null = null
 let currentModelRegistry: Record<string, any> = {}
 let currentShowToast: ((message: string, variant: string) => void) | undefined
-let currentAuthToken = ''
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -105,8 +103,8 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
 
   const preferredPort =
     options.port ?? (process.env.KIRO_PROXY_PORT ? parseInt(process.env.KIRO_PROXY_PORT, 10) : 4141)
-  const token = options.authToken || currentAuthToken || randomBytes(24).toString('hex')
-  currentAuthToken = token
+  const token =
+    options.authToken || (process.env.KIRO_PROXY_TOKEN ? process.env.KIRO_PROXY_TOKEN.trim() : '')
 
   startingPromise = (async () => {
     const server = http.createServer(async (req, res) => {
@@ -136,22 +134,24 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
         return
       }
 
-      // Verify Bearer / API token
-      const authHeader = req.headers.authorization || (req.headers['x-api-key'] as string) || ''
-      const bearer = authHeader.startsWith('Bearer ')
-        ? authHeader.slice(7).trim()
-        : authHeader.trim()
-      if (token && bearer !== token) {
-        res.writeHead(401, { 'Content-Type': 'application/json' })
-        res.end(
-          JSON.stringify({
-            error: {
-              message: 'Unauthorized: invalid or missing proxy token',
-              type: 'authentication_error'
-            }
-          })
-        )
-        return
+      // Verify Bearer / API token if configured
+      if (token) {
+        const authHeader = req.headers.authorization || (req.headers['x-api-key'] as string) || ''
+        const bearer = authHeader.startsWith('Bearer ')
+          ? authHeader.slice(7).trim()
+          : authHeader.trim()
+        if (bearer !== token) {
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(
+            JSON.stringify({
+              error: {
+                message: 'Unauthorized: invalid or missing proxy token',
+                type: 'authentication_error'
+              }
+            })
+          )
+          return
+        }
       }
 
       if (req.method === 'GET' && (url.pathname === '/v1/models' || url.pathname === '/models')) {
