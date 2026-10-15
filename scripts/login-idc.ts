@@ -9,9 +9,11 @@ import { fetchUsageLimits } from '../src/plugin/usage.js'
 
 const config = loadConfig(process.cwd())
 const region = config.default_region || 'eu-central-1'
-const startUrl = config.idc_start_url || 'https://d-99671a01cd.awsapps.com/start'
+const startUrl = config.idc_start_url || process.env.KIRO_START_URL || undefined
 
-console.log(`Starting IDC login for region: ${region}, startUrl: ${startUrl}...`)
+console.log(
+  `Starting IDC login for region: ${region}, startUrl: ${startUrl || 'AWS Builder ID (default)'}...`
+)
 
 const auth = await authorizeKiroIDC(region, startUrl)
 console.log('\n======================================================')
@@ -32,12 +34,20 @@ const tokenResult = await pollKiroIDCToken(
 
 console.log('Token received! Fetching usage limits & profile...')
 const profileArn = config.idc_profile_arn || readActiveProfileArnFromKiroCli()
-const email = tokenResult.email || makePlaceholderEmail(startUrl, auth.clientId)
-const accountId = createDeterministicAccountId(email, startUrl)
+const effectiveStartUrl = startUrl || 'https://view.awsapps.com/start'
+const email = tokenResult.email || makePlaceholderEmail('idc', region, auth.clientId, profileArn)
+const accountId = createDeterministicAccountId(email, 'idc', auth.clientId, profileArn)
 
 let limits: any = null
 try {
-  limits = await fetchUsageLimits(tokenResult.accessToken, tokenResult.region, profileArn)
+  limits = await fetchUsageLimits({
+    access: tokenResult.accessToken,
+    refresh: tokenResult.refreshToken,
+    expires: tokenResult.expiresAt,
+    region: tokenResult.region,
+    profileArn,
+    authMethod: 'idc'
+  })
 } catch (e) {
   console.log('Could not fetch limits (optional):', e)
 }

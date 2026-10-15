@@ -116,7 +116,8 @@ export const kiroPluginV2 = Plugin.define({
       if (existing) {
         editor.update(KIRO_PROVIDER_ID, (p: any) => {
           p.package = '@opencode/ai/providers/openai-compatible'
-          p.settings = { ...(p.settings || {}), baseURL }
+          p.activation = 'enabled'
+          p.settings = { ...(p.settings || {}), baseURL, apiKey: serverInstance.authToken }
         })
         editor.models.set(KIRO_PROVIDER_ID, models)
       } else {
@@ -126,7 +127,7 @@ export const kiroPluginV2 = Plugin.define({
             name: 'Kiro (AWS)',
             activation: 'enabled',
             package: '@opencode/ai/providers/openai-compatible',
-            settings: { baseURL }
+            settings: { baseURL, apiKey: serverInstance.authToken }
           },
           models
         })

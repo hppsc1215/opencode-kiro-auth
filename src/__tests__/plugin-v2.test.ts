@@ -44,8 +44,14 @@ describe('Kiro Plugin V2', () => {
     expect(healthData.status).toBe('ok')
     expect(healthData.service).toBe('kiro-proxy')
 
-    // Test /v1/models
-    const modelsRes = await fetch(`http://127.0.0.1:${instance.port}/v1/models`)
+    // Test /v1/models without auth -> 401
+    const unauthRes = await fetch(`http://127.0.0.1:${instance.port}/v1/models`)
+    expect(unauthRes.status).toBe(401)
+
+    // Test /v1/models with auth -> 200
+    const modelsRes = await fetch(`http://127.0.0.1:${instance.port}/v1/models`, {
+      headers: { Authorization: `Bearer ${instance.authToken}` }
+    })
     expect(modelsRes.status).toBe(200)
     const modelsData = await modelsRes.json()
     expect(modelsData.object).toBe('list')

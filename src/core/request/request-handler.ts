@@ -17,7 +17,17 @@ import { RetryStrategy } from './retry-strategy'
 
 type ToastFunction = (message: string, variant: 'info' | 'warning' | 'success' | 'error') => void
 
-const KIRO_API_PATTERN = /^(https?:\/\/)?(q\.[a-z0-9-]+\.amazonaws\.com|127\.0\.0\.1|localhost)/
+function isKiroOrProxyUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr)
+    const h = parsed.hostname.toLowerCase()
+    return (
+      h === '127.0.0.1' || h === 'localhost' || (h.startsWith('q.') && h.endsWith('.amazonaws.com'))
+    )
+  } catch {
+    return false
+  }
+}
 const REAUTH_FAILURE_COOLDOWN_MS = 60000
 
 export class RequestHandler {
@@ -48,7 +58,7 @@ export class RequestHandler {
   async handle(input: any, init: any, showToast: ToastFunction): Promise<Response> {
     const url = typeof input === 'string' ? input : input.url
 
-    if (!KIRO_API_PATTERN.test(url)) {
+    if (!isKiroOrProxyUrl(url)) {
       return fetch(input, init)
     }
 
