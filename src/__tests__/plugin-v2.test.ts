@@ -58,6 +58,10 @@ describe('Kiro Plugin V2', () => {
     expect(modelsData.object).toBe('list')
     expect(modelsData.data.length).toBeGreaterThan(0)
     expect(modelsData.data.some((m: any) => m.id === 'claude-sonnet-4-5')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-sonnet-5-5')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-sonnet-5-5-thinking')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-opus-5-5')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-opus-5-5-thinking')).toBe(true)
 
     // Close
     await instance.close()
