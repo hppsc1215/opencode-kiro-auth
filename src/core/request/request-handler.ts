@@ -17,7 +17,7 @@ import { RetryStrategy } from './retry-strategy'
 
 type ToastFunction = (message: string, variant: 'info' | 'warning' | 'success' | 'error') => void
 
-const KIRO_API_PATTERN = /^(https?:\/\/)?q\.[a-z0-9-]+\.amazonaws\.com/
+const KIRO_API_PATTERN = /^(https?:\/\/)?(q\.[a-z0-9-]+\.amazonaws\.com|127\.0\.0\.1|localhost)/
 const REAUTH_FAILURE_COOLDOWN_MS = 60000
 
 export class RequestHandler {
@@ -77,8 +77,15 @@ export class RequestHandler {
     init: any,
     showToast: ToastFunction
   ): Promise<Response> {
-    const body = init?.body ? JSON.parse(init.body) : {}
-    const model = this.extractModel(url) || body.model || 'claude-sonnet-4-5'
+    const body = init?.body
+      ? typeof init.body === 'string'
+        ? JSON.parse(init.body)
+        : init.body
+      : {}
+    let model = this.extractModel(url) || body.model || 'claude-sonnet-4-5'
+    if (typeof model === 'string' && model.startsWith('kiro/')) {
+      model = model.slice('kiro/'.length)
+    }
     const think =
       model.endsWith('-thinking') || !!body.providerOptions?.thinkingConfig || !!body.thinkingConfig
     const budget =

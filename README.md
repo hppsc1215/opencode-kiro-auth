@@ -29,7 +29,28 @@ models with substantial trial quotas.
 
 ## Installation
 
-Add the plugin to your `opencode.json` or `opencode.jsonc`:
+### OpenCode V2 (`opencode.json` or `opencode.jsonc`)
+
+Add the plugin to `plugins` and optionally configure the `kiro` provider in `providers`:
+
+```json
+{
+  "plugins": ["@zhafron/opencode-kiro-auth"],
+  "providers": {
+    "kiro": {
+      "name": "Kiro (AWS)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:4141/v1"
+      }
+    }
+  }
+}
+```
+
+The plugin starts a local OpenAI-compatible proxy server and registers the `kiro` provider with all 24 supported models and thinking variants.
+
+### OpenCode V1 (`opencode.json` or `opencode.jsonc`)
 
 ```json
 {
@@ -37,7 +58,7 @@ Add the plugin to your `opencode.json` or `opencode.jsonc`:
 }
 ```
 
-That is the whole configuration. The plugin registers the `kiro` provider and
+That is the whole configuration for V1. The plugin registers the `kiro` provider and
 advertises every model Kiro exposes, including a `-thinking` companion for each
 model that supports reasoning effort. Run `/models` to pick one.
 
