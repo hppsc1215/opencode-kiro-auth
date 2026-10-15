@@ -112,13 +112,10 @@ export class TokenRefresher {
           error.code === 'ExpiredClientException' ||
           error.code === 'HTTP_401' ||
           error.code === 'HTTP_403' ||
-          error.code === 'invalid_request' ||
-          error.code === 'invalid_client' ||
           error.code === 'invalid_grant' ||
           error.message.includes('Invalid refresh token provided') ||
           error.message.includes('Invalid grant provided') ||
           error.message.includes('Client is expired') ||
-          error.message.includes('Invalid request') ||
           error.message.includes('Invalid client'))) ||
       isPermanentError(error?.code) ||
       isPermanentError(error?.message)

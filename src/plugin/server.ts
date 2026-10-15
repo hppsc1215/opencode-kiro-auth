@@ -185,7 +185,15 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
                 if (done) break
                 const canWrite = res.write(value)
                 if (!canWrite && !closed) {
-                  await new Promise<void>((resolve) => res.once('drain', resolve))
+                  await new Promise<void>((resolve) => {
+                    const onDrainOrClose = () => {
+                      res.off('drain', onDrainOrClose)
+                      res.off('close', onDrainOrClose)
+                      resolve()
+                    }
+                    res.once('drain', onDrainOrClose)
+                    res.once('close', onDrainOrClose)
+                  })
                 }
               }
             }
@@ -249,11 +257,14 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
 
     logger.info(`Kiro proxy server listening on http://127.0.0.1:${port}`)
 
+    let closedThisInstance = false
     const instance: KiroServerInstance = {
       port,
       authToken: token,
       server,
       close: async () => {
+        if (closedThisInstance) return
+        closedThisInstance = true
         activeRefs = Math.max(0, activeRefs - 1)
         if (activeRefs === 0 && server) {
           if (typeof (server as any).closeAllConnections === 'function') {
@@ -275,7 +286,10 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
     activeInstance = instance
     activeRefs = 1
     return instance
-  })()
+  })().catch((err) => {
+    startingPromise = null
+    throw err
+  })
 
   return startingPromise
 }

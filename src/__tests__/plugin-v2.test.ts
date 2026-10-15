@@ -98,6 +98,7 @@ describe('Kiro Plugin V2', () => {
     expect(registeredProvider.info.id).toBe('kiro')
     expect(registeredProvider.info.package).toBe('@opencode/ai/providers/openai-compatible')
     expect(registeredProvider.models.length).toBeGreaterThan(0)
+    expect(registeredProvider.info.settings?.apiKey).toBeDefined()
     expect(registeredTool).toBeDefined()
     expect(registeredTool.name).toBe('kiro_web_search')
 

@@ -58,7 +58,7 @@ export async function syncFromKiroCli() {
               const creds = safeJsonParse(readFileSync(join(ssoCacheDir, file), 'utf-8'))
               if (creds?.clientId && creds?.clientSecret) {
                 const exp = creds.expiresAt ? new Date(creds.expiresAt).getTime() : 0
-                if (exp > 0 && exp <= Date.now()) continue
+                if (exp <= Date.now()) continue
                 if (!best || exp > best.expiresAt) {
                   best = {
                     clientId: creds.clientId,
