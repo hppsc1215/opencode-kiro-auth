@@ -31,6 +31,7 @@ describe('Kiro Plugin V2', () => {
 
     const instance = await startKiroServer({
       port: 4142, // use 4142 for test
+      authToken: 'secret-test-token',
       requestHandler,
       modelRegistry
     })
@@ -44,7 +45,7 @@ describe('Kiro Plugin V2', () => {
     expect(healthData.status).toBe('ok')
     expect(healthData.service).toBe('kiro-proxy')
 
-    // Test /v1/models without auth -> 401
+    // Test /v1/models without auth -> 401 when authToken is configured
     const unauthRes = await fetch(`http://127.0.0.1:${instance.port}/v1/models`)
     expect(unauthRes.status).toBe(401)
 
@@ -59,6 +60,29 @@ describe('Kiro Plugin V2', () => {
     expect(modelsData.data.some((m: any) => m.id === 'claude-sonnet-4-5')).toBe(true)
 
     // Close
+    await instance.close()
+  })
+
+  it('local proxy server without explicit token should allow loopback requests', async () => {
+    const config = loadConfig(process.cwd())
+    const cache = new AccountCache(60000)
+    const repository = new AccountRepository(cache)
+    const accountManager = await AccountManager.loadFromDisk()
+    const requestHandler = new RequestHandler(accountManager, config, repository)
+    const modelRegistry = buildModelRegistry()
+
+    const instance = await startKiroServer({
+      port: 4143,
+      requestHandler,
+      modelRegistry
+    })
+
+    expect(instance.port).toBe(4143)
+
+    // When no authToken is configured, local loopback requests without auth succeed
+    const modelsRes = await fetch(`http://127.0.0.1:${instance.port}/v1/models`)
+    expect(modelsRes.status).toBe(200)
+
     await instance.close()
   })
 
@@ -98,7 +122,7 @@ describe('Kiro Plugin V2', () => {
     expect(registeredProvider.info.id).toBe('kiro')
     expect(registeredProvider.info.package).toBe('@opencode/ai/providers/openai-compatible')
     expect(registeredProvider.models.length).toBeGreaterThan(0)
-    expect(registeredProvider.info.settings?.apiKey).toBeDefined()
+    expect(registeredProvider.info.settings?.baseURL).toBeDefined()
     expect(registeredTool).toBeDefined()
     expect(registeredTool.name).toBe('kiro_web_search')
 
