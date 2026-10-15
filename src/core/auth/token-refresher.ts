@@ -2,6 +2,7 @@ import type { AccountRepository } from '../../infrastructure/database/account-re
 import { accessTokenExpired } from '../../kiro/auth'
 import type { AccountManager } from '../../plugin/accounts'
 import { KiroTokenRefreshError } from '../../plugin/errors'
+import { isPermanentError } from '../../plugin/health'
 import * as logger from '../../plugin/logger'
 import { refreshAccessToken } from '../../plugin/token'
 import type { KiroAuthDetails, ManagedAccount } from '../../plugin/types'
@@ -87,6 +88,10 @@ export class TokenRefresher {
 
     this.repository.invalidateCache()
     const accounts = await this.repository.findAll()
+    for (const a of accounts) {
+      this.accountManager.addAccount(a)
+    }
+
     const stillAcc = accounts.find((a: ManagedAccount) => a.id === account.id)
 
     if (
@@ -101,15 +106,19 @@ export class TokenRefresher {
     }
 
     if (
-      error instanceof KiroTokenRefreshError &&
-      (error.code === 'ExpiredTokenException' ||
-        error.code === 'InvalidTokenException' ||
-        error.code === 'ExpiredClientException' ||
-        error.code === 'HTTP_401' ||
-        error.code === 'HTTP_403' ||
-        error.message.includes('Invalid refresh token provided') ||
-        error.message.includes('Invalid grant provided') ||
-        error.message.includes('Client is expired'))
+      (error instanceof KiroTokenRefreshError &&
+        (error.code === 'ExpiredTokenException' ||
+          error.code === 'InvalidTokenException' ||
+          error.code === 'ExpiredClientException' ||
+          error.code === 'HTTP_401' ||
+          error.code === 'HTTP_403' ||
+          error.code === 'invalid_grant' ||
+          error.message.includes('Invalid refresh token provided') ||
+          error.message.includes('Invalid grant provided') ||
+          error.message.includes('Client is expired') ||
+          error.message.includes('Invalid client'))) ||
+      isPermanentError(error?.code) ||
+      isPermanentError(error?.message)
     ) {
       this.accountManager.markUnhealthy(account, error.code || error.message)
       await this.repository.batchSave(this.accountManager.getAccounts())

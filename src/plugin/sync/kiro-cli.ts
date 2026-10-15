@@ -1,5 +1,7 @@
 import Database from 'libsql'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { extractRegionFromArn, normalizeRegion } from '../../constants'
 import { createDeterministicAccountId } from '../accounts'
 import * as logger from '../logger'
@@ -42,7 +44,39 @@ export async function syncFromKiroCli() {
       (r) => typeof r?.key === 'string' && r.key.includes('device-registration')
     )
     const deviceReg = safeJsonParse(deviceRegRow?.value)
-    const regCreds = deviceReg ? findClientCredsRecursive(deviceReg) : {}
+    let regCreds = deviceReg ? findClientCredsRecursive(deviceReg) : {}
+
+    if (!regCreds.clientId || !regCreds.clientSecret) {
+      // Fallback: check ~/.aws/sso/cache for unexpired client credentials
+      const ssoCacheDir = join(homedir(), '.aws', 'sso', 'cache')
+      if (existsSync(ssoCacheDir)) {
+        try {
+          const files = readdirSync(ssoCacheDir)
+          let best: { clientId: string; clientSecret: string; expiresAt: number } | null = null
+          for (const file of files) {
+            if (file.endsWith('.json') && !file.startsWith('kiro')) {
+              const creds = safeJsonParse(readFileSync(join(ssoCacheDir, file), 'utf-8'))
+              if (creds?.clientId && creds?.clientSecret) {
+                const exp = creds.expiresAt ? new Date(creds.expiresAt).getTime() : 0
+                if (exp <= Date.now()) continue
+                if (!best || exp > best.expiresAt) {
+                  best = {
+                    clientId: creds.clientId,
+                    clientSecret: creds.clientSecret,
+                    expiresAt: exp
+                  }
+                }
+              }
+            }
+          }
+          if (best) {
+            regCreds = { clientId: best.clientId, clientSecret: best.clientSecret }
+          }
+        } catch {
+          // Ignore cache read failures
+        }
+      }
+    }
     const syncedAccounts: SyncedCliAccount[] = []
 
     for (const row of rows) {

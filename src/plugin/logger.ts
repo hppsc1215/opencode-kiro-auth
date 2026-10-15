@@ -63,6 +63,8 @@ export function log(message: string, ...args: unknown[]): void {
   writeToFile('INFO', message, ...args)
 }
 
+export const info = log
+
 export function error(message: string, ...args: unknown[]): void {
   writeToFile('ERROR', message, ...args)
 }

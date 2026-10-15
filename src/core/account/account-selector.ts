@@ -39,6 +39,11 @@ export class AccountSelector {
 
     let acc = this.accountManager.getCurrentOrNext()
 
+    if (!acc && this.config.auto_sync_kiro_cli) {
+      await this.handleEmptyAccounts()
+      acc = this.accountManager.getCurrentOrNext()
+    }
+
     if (!acc) {
       this.circuitBreakerTrips++
       const wait = this.accountManager.getMinWaitTime()
