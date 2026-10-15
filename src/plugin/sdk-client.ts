@@ -1,6 +1,12 @@
 import { CodeWhispererStreamingClient } from '@aws/codewhisperer-streaming-client'
+import { FetchHttpHandler } from '@smithy/fetch-http-handler'
 import { KIRO_CONSTANTS } from '../constants.js'
 import type { Effort, KiroAuthDetails } from './types'
+
+// Under Bun (OpenCode v2 ships Bun 1.4.x) node:https requests through an
+// HTTP(S) proxy hang indefinitely, while the native fetch works. Use the
+// fetch-based handler there; Node keeps the SDK default.
+const useFetchHandler = typeof (globalThis as any).Bun !== 'undefined'
 
 /**
  * Cache key includes effort to ensure separate clients for different effort levels,
@@ -34,7 +40,8 @@ export function createSdkClient(
     token: () => Promise.resolve({ token }),
     maxAttempts: KIRO_CLI_MAX_ATTEMPTS,
     retryMode: 'standard',
-    customUserAgent: [[KIRO_CONSTANTS.USER_AGENT]]
+    customUserAgent: [[KIRO_CONSTANTS.USER_AGENT]],
+    ...(useFetchHandler ? { requestHandler: new FetchHttpHandler() } : {})
   })
 
   // Add Kiro-specific headers
