@@ -157,6 +157,14 @@ setting is a global override for all supported models, not a per-model setting.
 The simplest way to test local changes is to point OpenCode directly at your local repo
 path in `opencode.json` or `opencode.jsonc`:
 
+**OpenCode V2**:
+```json
+{
+  "plugins": ["/path/to/opencode-kiro-auth"]
+}
+```
+
+**OpenCode V1**:
 ```json
 {
   "plugin": ["/path/to/opencode-kiro-auth"]
@@ -166,7 +174,8 @@ path in `opencode.json` or `opencode.jsonc`:
 Then build and restart OpenCode to pick up changes:
 
 ```bash
-npm run build
+bun run build
+# or npm run build
 ```
 
 ## Troubleshooting

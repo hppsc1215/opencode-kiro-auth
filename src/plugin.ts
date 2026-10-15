@@ -40,6 +40,11 @@ const WEB_SEARCH_DESCRIPTION = `Search the web using Kiro's built-in search engi
 
 /**
  * OpenCode V2 Plugin Definition
+ *
+ * In OpenCode V2, providers are configured with a runtime package such as
+ * `@opencode/ai/providers/openai-compatible`. This plugin starts a local, secured
+ * OpenAI-compatible HTTP proxy on loopback and registers the `kiro` provider
+ * dynamically with its models, thinking variants, and tools.
  */
 export const kiroPluginV2 = Plugin.define({
   id: KIRO_PROVIDER_ID,
@@ -176,6 +181,10 @@ export const kiroPluginV2 = Plugin.define({
 
 /**
  * OpenCode V1 Plugin Compatibility
+ *
+ * Preserves the V1 object hook pattern (`server()` entrypoint with `config`,
+ * `auth.loader`, and custom `fetch` interceptor) so the same package works
+ * seamlessly across both OpenCode V1 and V2 harnesses.
  */
 export const createKiroPlugin =
   (id: string) =>

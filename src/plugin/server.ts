@@ -4,14 +4,25 @@ import { AddressInfo } from 'node:net'
 import type { RequestHandler } from '../core/request/request-handler.js'
 import * as logger from './logger.js'
 
+/**
+ * Options for configuring and starting the local Kiro OpenAI-compatible proxy server.
+ */
 export interface KiroServerOptions {
+  /** Preferred port to listen on. Defaults to KIRO_PROXY_PORT env var or 4141, with automatic fallback to a random free port on EADDRINUSE. */
   port?: number
+  /** RequestHandler instance translating incoming OpenAI chat completions to AWS CodeWhisperer SDK streaming calls. */
   requestHandler: RequestHandler
+  /** Active model registry advertised on /v1/models. */
   modelRegistry: Record<string, any>
+  /** Optional pre-shared bearer token. If not provided, a random 24-byte hex token is generated. */
   authToken?: string
+  /** Toast callback for user notifications. */
   showToast?: (message: string, variant: string) => void
 }
 
+/**
+ * Handle to a running Kiro proxy server instance.
+ */
 export interface KiroServerInstance {
   port: number
   authToken: string
@@ -66,6 +77,16 @@ function createInstanceHandle(instance: KiroServerInstance): KiroServerInstance 
   }
 }
 
+/**
+ * Starts or reuses the local Kiro HTTP proxy server.
+ *
+ * Security & Lifecycle features:
+ * - Binds strictly to 127.0.0.1 (rejects any foreign Host header to prevent DNS-rebinding attacks).
+ * - Enforces Bearer token authentication via Authorization or x-api-key header.
+ * - Handles backpressure on streaming responses by listening for drain/close.
+ * - Filters hop-by-hop HTTP headers from upstream responses.
+ * - Ref-counted singleton lifecycle: handles per-caller cleanup safely without premature shutdown.
+ */
 export async function startKiroServer(options: KiroServerOptions): Promise<KiroServerInstance> {
   currentRequestHandler = options.requestHandler
   currentModelRegistry = options.modelRegistry
