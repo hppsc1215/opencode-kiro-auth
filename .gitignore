@@ -6,3 +6,5 @@ dist/
 .vscode/*
 .sisyphus
 *.tgz
+opencode.config
+opencode.json
