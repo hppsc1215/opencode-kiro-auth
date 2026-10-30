@@ -281,25 +281,27 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
     })
 
     const port = await new Promise<number>((resolve, reject) => {
+      // A single 'listening' handler reads the bound port. Passing a callback to
+      // each listen() call would register two handlers, and after an
+      // EADDRINUSE fallback the first one would resolve with the busy port.
+      server.once('listening', () => {
+        server.removeListener('error', onError)
+        resolve((server.address() as AddressInfo).port)
+      })
+
       const onError = (err: any) => {
         if (err.code === 'EADDRINUSE') {
           logger.warn(`Port ${preferredPort} is in use, falling back to random available port...`)
           server.removeListener('error', onError)
           server.once('error', reject)
-          server.listen(0, '127.0.0.1', () => {
-            const addr = server.address() as AddressInfo
-            resolve(addr.port)
-          })
+          server.listen(0, '127.0.0.1')
         } else {
           reject(err)
         }
       }
 
       server.once('error', onError)
-      server.listen(preferredPort, '127.0.0.1', () => {
-        server.removeListener('error', onError)
-        resolve(preferredPort)
-      })
+      server.listen(preferredPort, '127.0.0.1')
     })
 
     logger.info(`Kiro proxy server listening on http://127.0.0.1:${port}`)

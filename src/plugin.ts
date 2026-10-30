@@ -98,9 +98,11 @@ export const kiroPluginV2 = Plugin.define({
         const variants: any[] = []
         if (info.variants) {
           for (const [varId, varConf] of Object.entries(info.variants)) {
+            // V2 only forwards `body` into the request payload; `settings` is
+            // consumed by OpenCode itself and never reaches the proxy.
             variants.push({
               id: varId,
-              settings: varConf
+              body: varConf
             })
           }
         }

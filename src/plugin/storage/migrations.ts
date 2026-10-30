@@ -2,13 +2,28 @@ import type Libsql from 'libsql'
 
 type Database = Libsql.Database
 
+/**
+ * Run all schema migrations in one write transaction.
+ *
+ * Several OpenCode instances load the plugin at the same time and share one
+ * database. BEGIN IMMEDIATE takes the write lock up front, so concurrent
+ * starters queue on busy_timeout instead of failing with SQLITE_BUSY halfway
+ * through, and the existence checks below see a consistent schema.
+ */
 export function runMigrations(db: Database): void {
-  migrateToUniqueRefreshToken(db)
-  migrateRealEmailColumn(db)
-  migrateUsageTable(db)
-  migrateStartUrlColumn(db)
-  migrateOidcRegionColumn(db)
-  migrateDropRefreshTokenUniqueIndex(db)
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    migrateToUniqueRefreshToken(db)
+    migrateRealEmailColumn(db)
+    migrateUsageTable(db)
+    migrateStartUrlColumn(db)
+    migrateOidcRegionColumn(db)
+    migrateDropRefreshTokenUniqueIndex(db)
+    db.exec('COMMIT')
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
 }
 
 function migrateToUniqueRefreshToken(db: Database): void {
@@ -20,37 +35,35 @@ function migrateToUniqueRefreshToken(db: Database): void {
 
   if (hasIndex) return
 
-  db.exec('BEGIN TRANSACTION')
-  try {
-    const duplicates = db
-      .prepare(
-        `
+  const duplicates = db
+    .prepare(
+      `
         SELECT refresh_token, COUNT(*) as count 
         FROM accounts 
         GROUP BY refresh_token 
         HAVING count > 1
       `
+    )
+    .all() as any[]
+
+  for (const dup of duplicates) {
+    const accounts = db
+      .prepare(
+        'SELECT * FROM accounts WHERE refresh_token = ? ORDER BY last_used DESC, expires_at DESC'
       )
-      .all() as any[]
+      .all(dup.refresh_token) as any[]
 
-    for (const dup of duplicates) {
-      const accounts = db
-        .prepare(
-          'SELECT * FROM accounts WHERE refresh_token = ? ORDER BY last_used DESC, expires_at DESC'
-        )
-        .all(dup.refresh_token) as any[]
+    if (accounts.length > 1) {
+      const keep = accounts[0]
+      const remove = accounts.slice(1)
 
-      if (accounts.length > 1) {
-        const keep = accounts[0]
-        const remove = accounts.slice(1)
+      const mergedUsedCount = Math.max(...accounts.map((a: any) => a.used_count || 0))
+      const mergedLimitCount = Math.max(...accounts.map((a: any) => a.limit_count || 0))
+      const mergedLastUsed = Math.max(...accounts.map((a: any) => a.last_used || 0))
+      const mergedFailCount = Math.max(...accounts.map((a: any) => a.fail_count || 0))
 
-        const mergedUsedCount = Math.max(...accounts.map((a: any) => a.used_count || 0))
-        const mergedLimitCount = Math.max(...accounts.map((a: any) => a.limit_count || 0))
-        const mergedLastUsed = Math.max(...accounts.map((a: any) => a.last_used || 0))
-        const mergedFailCount = Math.max(...accounts.map((a: any) => a.fail_count || 0))
-
-        db.prepare(
-          `
+      db.prepare(
+        `
             UPDATE accounts SET 
               used_count = ?, 
               limit_count = ?, 
@@ -58,27 +71,22 @@ function migrateToUniqueRefreshToken(db: Database): void {
               fail_count = ?
             WHERE id = ?
           `
-        ).run(mergedUsedCount, mergedLimitCount, mergedLastUsed, mergedFailCount, keep.id)
+      ).run(mergedUsedCount, mergedLimitCount, mergedLastUsed, mergedFailCount, keep.id)
 
-        for (const acc of remove) {
-          db.prepare('DELETE FROM accounts WHERE id = ?').run(acc.id)
-        }
+      for (const acc of remove) {
+        db.prepare('DELETE FROM accounts WHERE id = ?').run(acc.id)
       }
     }
-
-    db.exec('CREATE UNIQUE INDEX idx_refresh_token_unique ON accounts(refresh_token)')
-    db.exec('COMMIT')
-  } catch (e) {
-    db.exec('ROLLBACK')
-    throw e
   }
+
+  db.exec('CREATE UNIQUE INDEX idx_refresh_token_unique ON accounts(refresh_token)')
 }
 
 function migrateRealEmailColumn(db: Database): void {
   const columns = db.prepare('PRAGMA table_info(accounts)').all() as any[]
   const names = new Set(columns.map((c) => c.name))
   if (names.has('real_email')) {
-    db.exec('BEGIN TRANSACTION')
+    db.exec('SAVEPOINT real_email')
     try {
       db.exec(
         "UPDATE accounts SET email = real_email WHERE real_email IS NOT NULL AND real_email != '' AND email LIKE 'builder-id@aws.amazon.com%'"
@@ -100,9 +108,10 @@ function migrateRealEmailColumn(db: Database): void {
         `)
       db.exec('DROP TABLE accounts')
       db.exec('ALTER TABLE accounts_new RENAME TO accounts')
-      db.exec('COMMIT')
+      db.exec('RELEASE real_email')
     } catch (e) {
-      db.exec('ROLLBACK')
+      db.exec('ROLLBACK TO real_email')
+      db.exec('RELEASE real_email')
     }
   } else {
     const needed: Record<string, string> = {
