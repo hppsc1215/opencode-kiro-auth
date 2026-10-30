@@ -100,7 +100,7 @@ export class KiroDatabase {
       const merged = mergeAccounts(existing, [acc])
       const deduplicated = deduplicateAccounts(merged)
 
-      this.db.exec('BEGIN TRANSACTION')
+      this.db.exec('BEGIN IMMEDIATE')
       try {
         for (const account of deduplicated) {
           this.upsertAccountInternal(account)
@@ -119,7 +119,7 @@ export class KiroDatabase {
       const merged = mergeAccounts(existing, accounts)
       const deduplicated = deduplicateAccounts(merged)
 
-      this.db.exec('BEGIN TRANSACTION')
+      this.db.exec('BEGIN IMMEDIATE')
       try {
         for (const account of deduplicated) {
           this.upsertAccountInternal(account)
@@ -144,7 +144,7 @@ export class KiroDatabase {
     await withDatabaseLock(this.path, async () => {
       const now = Date.now()
 
-      this.db.exec('BEGIN TRANSACTION')
+      this.db.exec('BEGIN IMMEDIATE')
       try {
         const stmt = this.db.prepare(
           `
