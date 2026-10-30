@@ -127,6 +127,14 @@ describe('Kiro Plugin V2', () => {
     expect(registeredProvider.info.package).toBe('@opencode/ai/providers/openai-compatible')
     expect(registeredProvider.models.length).toBeGreaterThan(0)
     expect(registeredProvider.info.settings?.baseURL).toBeDefined()
+
+    // Variant thinking config must travel in `body`, the only variant field V2
+    // merges into the request payload.
+    const opus = registeredProvider.models.find((m: any) => m.id === 'claude-opus-5-5-thinking')
+    const high = opus.variants.find((v: any) => v.id === 'high')
+    expect(high.body).toEqual({ thinkingConfig: { thinkingBudget: 65536 } })
+    expect(high.settings).toBeUndefined()
+
     expect(registeredTool).toBeDefined()
     expect(registeredTool.name).toBe('kiro_web_search')
 
