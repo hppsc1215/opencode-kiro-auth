@@ -1,5 +1,4 @@
 import * as crypto from 'crypto'
-import * as os from 'os'
 import { KIRO_CONSTANTS, buildUrl, extractRegionFromArn } from '../constants.js'
 import {
   buildHistory,
@@ -23,6 +22,7 @@ import {
   extractAllImages,
   extractTextFromParts
 } from './image-handler.js'
+import { buildKiroClientIdentityFor } from './kiro-user-agent.js'
 import { resolveKiroModel } from './models.js'
 import type {
   CodeWhispererRequest,
@@ -310,12 +310,7 @@ export function transformToCodeWhisperer(
     think,
     budget
   )
-  const osP = os.platform(),
-    osR = os.release(),
-    nodeV = process.version.replace('v', '')
-  const osN =
-    osP === 'win32' ? `windows#${osR}` : osP === 'darwin' ? `macos#${osR}` : `${osP}#${osR}`
-  const ua = `aws-sdk-js/3.738.0 ua/2.1 os/${osN} lang/js md/nodejs#${nodeV} api/codewhisperer#3.738.0 m/E KiroIDE`
+  const identity = buildKiroClientIdentityFor(auth)
   return {
     url: buildUrl(KIRO_CONSTANTS.BASE_URL, extractRegionFromArn(auth.profileArn) ?? auth.region),
     init: {
@@ -327,8 +322,8 @@ export function transformToCodeWhisperer(
         'amz-sdk-invocation-id': crypto.randomUUID(),
         'amz-sdk-request': 'attempt=1; max=1',
         'x-amzn-kiro-agent-mode': 'vibe',
-        'x-amz-user-agent': 'aws-sdk-js/3.738.0 KiroIDE',
-        'user-agent': ua,
+        'x-amz-user-agent': identity.amzUserAgent,
+        'user-agent': identity.userAgent,
         Connection: 'close'
       },
       body: JSON.stringify(request)

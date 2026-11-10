@@ -1,5 +1,6 @@
 import { GenerateAssistantResponseCommand } from '@aws/codewhisperer-streaming-client'
 import { describe, expect, test } from 'bun:test'
+import { buildKiroClientIdentityFor } from '../plugin/kiro-user-agent'
 import { clearSdkClientCache, createSdkClient } from '../plugin/sdk-client'
 import type { KiroAuthDetails } from '../plugin/types'
 
@@ -54,6 +55,38 @@ async function captureRequest(client: ReturnType<typeof createSdkClient>) {
   }
 }
 
+async function captureFinalHeaders(client: ReturnType<typeof createSdkClient>) {
+  let headers: Record<string, string> = {}
+
+  client.middlewareStack.add(
+    () => async (args: any) => {
+      headers = args.request.headers
+      throw new Error('captured-headers')
+    },
+    { step: 'finalizeRequest', name: 'captureFinalHeaders', priority: 'low' }
+  )
+
+  const command = new GenerateAssistantResponseCommand({
+    conversationState: {
+      chatTriggerType: 'MANUAL',
+      conversationId: 'test-conversation',
+      currentMessage: {
+        userInputMessage: {
+          content: 'hello',
+          modelId: 'claude-opus-4.7',
+          origin: 'AI_EDITOR'
+        }
+      }
+    }
+  })
+
+  await client.send(command).catch((error) => {
+    if (error.message !== 'captured-headers') throw error
+  })
+
+  return headers
+}
+
 describe('SDK client', () => {
   test('uses Kiro CLI-style standard SDK retries for throttling', async () => {
     clearSdkClientCache()
@@ -63,6 +96,20 @@ describe('SDK client', () => {
     expect(await client.config.maxAttempts()).toBe(3)
     const retryMode = client.config.retryMode
     expect(typeof retryMode === 'function' ? await retryMode() : retryMode).toBe('standard')
+
+    clearSdkClientCache()
+  })
+
+  test('sends the versioned KiroIDE fingerprint instead of the unversioned SDK identity', async () => {
+    clearSdkClientCache()
+
+    const client = createSdkClient(auth(), 'us-east-1')
+    const headers = await captureFinalHeaders(client)
+    const expected = buildKiroClientIdentityFor(auth())
+
+    expect(headers['user-agent']).toBe(expected.userAgent)
+    expect(headers['x-amz-user-agent']).toBe(expected.amzUserAgent)
+    expect(headers['user-agent']).toMatch(/KiroIDE-1\.4\.121-[a-f0-9]{64}$/)
 
     clearSdkClientCache()
   })

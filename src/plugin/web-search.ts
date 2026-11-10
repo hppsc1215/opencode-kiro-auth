@@ -1,6 +1,7 @@
 import { KIRO_CONSTANTS } from '../constants.js'
 import { accessTokenExpired } from '../kiro/auth.js'
 import type { AccountManager } from './accounts.js'
+import { buildKiroClientIdentityFor } from './kiro-user-agent.js'
 import * as logger from './logger.js'
 import { refreshAccessToken } from './token.js'
 import type { KiroAuthDetails } from './types'
@@ -50,6 +51,7 @@ export async function kiroWebSearch(
     '{{region}}',
     auth.region
   )
+  const identity = buildKiroClientIdentityFor(auth)
 
   const res = await fetch(url, {
     method: 'POST',
@@ -57,7 +59,9 @@ export async function kiroWebSearch(
       Authorization: `Bearer ${auth.access}`,
       'Content-Type': 'application/x-amz-json-1.0',
       'X-Amz-Target': MCP_TARGET,
-      'x-amzn-kiro-agent-mode': 'vibe'
+      'x-amzn-kiro-agent-mode': 'vibe',
+      'user-agent': identity.userAgent,
+      'x-amz-user-agent': identity.amzUserAgent
     },
     body: JSON.stringify({
       profileArn: auth.profileArn,
