@@ -19,6 +19,7 @@ describe('effort module', () => {
       expect(supportsEffort('claude-sonnet-5.5')).toBe(true)
       expect(supportsEffort('claude-opus-5')).toBe(true)
       expect(supportsEffort('claude-opus-5.5')).toBe(true)
+      expect(supportsEffort('claude-haiku-5.5')).toBe(true)
     })
 
     test('returns false for unsupported models', () => {
@@ -28,7 +29,7 @@ describe('effort module', () => {
   })
 
   describe('supportsXHighEffort', () => {
-    test('returns true for opus 4.7/4.8/5/5.5 and sonnet 5/5.5', () => {
+    test('returns true for opus 4.7/4.8/5/5.5, sonnet 5/5.5 and haiku 5.5', () => {
       expect(supportsXHighEffort('claude-opus-4.8')).toBe(true)
       expect(supportsXHighEffort('claude-opus-4.7')).toBe(true)
       expect(supportsXHighEffort('claude-opus-5')).toBe(true)
@@ -36,6 +37,7 @@ describe('effort module', () => {
       expect(supportsXHighEffort('claude-sonnet-5')).toBe(true)
       expect(supportsXHighEffort('claude-sonnet-5-1m')).toBe(true)
       expect(supportsXHighEffort('claude-sonnet-5.5')).toBe(true)
+      expect(supportsXHighEffort('claude-haiku-5.5')).toBe(true)
     })
 
     test('returns false for other models', () => {

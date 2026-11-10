@@ -33,7 +33,8 @@ const XHIGH_CAPABLE_MODELS = new Set([
   'claude-opus-5.5',
   'claude-sonnet-5',
   'claude-sonnet-5-1m',
-  'claude-sonnet-5.5'
+  'claude-sonnet-5.5',
+  'claude-haiku-5.5'
 ])
 
 /**

@@ -81,6 +81,14 @@ const MODEL_SPECS: Record<string, ModelSpec> = {
     limit: CONTEXT_200K,
     modalities: TEXT_IMAGE
   },
+  'claude-haiku-5-5': {
+    name: 'Claude Haiku 5.5',
+    // 0.06x for requests up to 100K tokens, 0.3x above 100K.
+    rate: '0.06x',
+    limit: CONTEXT_1M,
+    modalities: TEXT_IMAGE,
+    thinking: true
+  },
 
   // Claude Opus
   'claude-opus-4-5': {

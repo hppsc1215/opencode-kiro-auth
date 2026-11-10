@@ -12,7 +12,11 @@ describe('isLongContextModel', () => {
       'claude-sonnet-5-5',
       'claude-sonnet-5-5-thinking',
       'claude-sonnet-5.5',
-      'claude-sonnet-5.5-thinking'
+      'claude-sonnet-5.5-thinking',
+      'claude-haiku-5-5',
+      'claude-haiku-5-5-thinking',
+      'claude-haiku-5.5',
+      'claude-haiku-5.5-thinking'
     ]
     expect(expected1m.length).toBeGreaterThan(0)
     for (const model of expected1m) {

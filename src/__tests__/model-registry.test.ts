@@ -14,7 +14,8 @@ const XHIGH_MODELS = [
   'claude-opus-5-thinking',
   'claude-opus-5-5-thinking',
   'claude-sonnet-5-thinking',
-  'claude-sonnet-5-5-thinking'
+  'claude-sonnet-5-5-thinking',
+  'claude-haiku-5-5-thinking'
 ]
 
 describe('model registry', () => {
@@ -36,7 +37,8 @@ describe('model registry', () => {
         'claude-sonnet-4-5-thinking',
         'claude-sonnet-4-6-thinking',
         'claude-sonnet-5-thinking',
-        'claude-sonnet-5-5-thinking'
+        'claude-sonnet-5-5-thinking',
+        'claude-haiku-5-5-thinking'
       ].sort()
     )
   })
@@ -103,5 +105,8 @@ describe('model registry', () => {
     expect(registry['claude-opus-5-thinking'].modalities).toEqual(
       registry['claude-opus-5'].modalities
     )
+    expect(registry['claude-haiku-5-5'].limit).toEqual({ context: 1000000, output: 64000 })
+    expect(registry['claude-haiku-5-5'].name).toContain('0.06x')
+    expect(registry['claude-haiku-5-5-thinking'].limit).toEqual(registry['claude-haiku-5-5'].limit)
   })
 })
