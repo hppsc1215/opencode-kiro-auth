@@ -34,6 +34,10 @@ describe('resolveKiroModel', () => {
     expect(resolveKiroModel('claude-sonnet-5-5-thinking')).toBe('claude-sonnet-5.5')
     expect(resolveKiroModel('claude-sonnet-5.5')).toBe('claude-sonnet-5.5')
     expect(resolveKiroModel('claude-sonnet-5.5-thinking')).toBe('claude-sonnet-5.5')
+    expect(resolveKiroModel('claude-haiku-5-5')).toBe('claude-haiku-5.5')
+    expect(resolveKiroModel('claude-haiku-5-5-thinking')).toBe('claude-haiku-5.5')
+    expect(resolveKiroModel('claude-haiku-5.5')).toBe('claude-haiku-5.5')
+    expect(resolveKiroModel('claude-haiku-5.5-thinking')).toBe('claude-haiku-5.5')
   })
 
   test('rejects removed qwen3-coder-480b slug', () => {

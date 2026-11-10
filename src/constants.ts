@@ -53,6 +53,10 @@ export const MODEL_MAPPING: Record<string, string> = {
   // Claude Haiku
   'claude-haiku-4-5': 'claude-haiku-4.5',
   'claude-haiku-4-5-thinking': 'claude-haiku-4.5',
+  'claude-haiku-5-5': 'claude-haiku-5.5',
+  'claude-haiku-5-5-thinking': 'claude-haiku-5.5',
+  'claude-haiku-5.5': 'claude-haiku-5.5',
+  'claude-haiku-5.5-thinking': 'claude-haiku-5.5',
   // Claude Sonnet
   'claude-sonnet-4': 'claude-sonnet-4',
   'claude-sonnet-4-5': 'claude-sonnet-4.5',
@@ -115,7 +119,11 @@ const LONG_CONTEXT_MODELS = new Set([
   'claude-sonnet-5-5',
   'claude-sonnet-5-5-thinking',
   'claude-sonnet-5.5',
-  'claude-sonnet-5.5-thinking'
+  'claude-sonnet-5.5-thinking',
+  'claude-haiku-5-5',
+  'claude-haiku-5-5-thinking',
+  'claude-haiku-5.5',
+  'claude-haiku-5.5-thinking'
 ])
 
 export function isLongContextModel(model: string): boolean {

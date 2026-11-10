@@ -62,6 +62,8 @@ describe('Kiro Plugin V2', () => {
     expect(modelsData.data.some((m: any) => m.id === 'claude-sonnet-5-5-thinking')).toBe(true)
     expect(modelsData.data.some((m: any) => m.id === 'claude-opus-5-5')).toBe(true)
     expect(modelsData.data.some((m: any) => m.id === 'claude-opus-5-5-thinking')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-haiku-5-5')).toBe(true)
+    expect(modelsData.data.some((m: any) => m.id === 'claude-haiku-5-5-thinking')).toBe(true)
 
     // Close
     await instance.close()
