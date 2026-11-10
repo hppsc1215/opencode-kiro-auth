@@ -1,6 +1,6 @@
 import { CodeWhispererStreamingClient } from '@aws/codewhisperer-streaming-client'
 import { FetchHttpHandler } from '@smithy/fetch-http-handler'
-import { KIRO_CONSTANTS } from '../constants.js'
+import { buildKiroClientIdentityFor } from './kiro-user-agent.js'
 import type { Effort, KiroAuthDetails } from './types'
 
 // Under Bun (OpenCode v2 ships Bun 1.4.x) node:https requests through an
@@ -34,13 +34,14 @@ export function createSdkClient(
   }
 
   const token = auth.access
+  const identity = buildKiroClientIdentityFor(auth)
   const client = new CodeWhispererStreamingClient({
     region,
     endpoint: `https://q.${region}.amazonaws.com`,
     token: () => Promise.resolve({ token }),
     maxAttempts: KIRO_CLI_MAX_ATTEMPTS,
     retryMode: 'standard',
-    customUserAgent: [[KIRO_CONSTANTS.USER_AGENT]],
+    customUserAgent: [[identity.ideToken]],
     ...(useFetchHandler ? { requestHandler: new FetchHttpHandler() } : {})
   })
 
@@ -51,6 +52,18 @@ export function createSdkClient(
       return next(args)
     },
     { step: 'build', name: 'addKiroHeaders' }
+  )
+
+  // The SDK builds its own User-Agent at the build step. Override both Kiro
+  // identity headers at the end of the stack so the versioned fingerprint is
+  // what actually leaves the process, independent of the SDK version.
+  client.middlewareStack.add(
+    (next: any) => async (args: any) => {
+      args.request.headers['user-agent'] = identity.userAgent
+      args.request.headers['x-amz-user-agent'] = identity.amzUserAgent
+      return next(args)
+    },
+    { step: 'finalizeRequest', name: 'addKiroFingerprint', priority: 'low' }
   )
 
   // Inject additionalModelRequestFields for effort-based thinking control

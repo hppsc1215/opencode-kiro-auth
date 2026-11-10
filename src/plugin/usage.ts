@@ -1,3 +1,4 @@
+import { buildKiroClientIdentityFor } from './kiro-user-agent'
 import { KiroAuthDetails, ManagedAccount } from './types'
 
 export async function fetchUsageLimits(auth: KiroAuthDetails): Promise<any> {
@@ -9,6 +10,7 @@ export async function fetchUsageLimits(auth: KiroAuthDetails): Promise<any> {
     {}
   ]
 
+  const identity = buildKiroClientIdentityFor(auth)
   let lastError: Error | null = null
 
   for (const [index, params] of attempts.entries()) {
@@ -25,7 +27,9 @@ export async function fetchUsageLimits(auth: KiroAuthDetails): Promise<any> {
           Authorization: `Bearer ${auth.access}`,
           'Content-Type': 'application/json',
           'x-amzn-kiro-agent-mode': 'vibe',
-          'amz-sdk-request': 'attempt=1; max=1'
+          'amz-sdk-request': 'attempt=1; max=1',
+          'user-agent': identity.userAgent,
+          'x-amz-user-agent': identity.amzUserAgent
         }
       })
 
