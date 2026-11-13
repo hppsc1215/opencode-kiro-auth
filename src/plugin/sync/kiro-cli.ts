@@ -88,6 +88,26 @@ export async function syncFromKiroCli() {
         const authMethod = isIdc ? 'idc' : 'desktop'
         let profileArn: string | undefined = data.profile_arn || data.profileArn
         if (!profileArn && isIdc) profileArn = activeProfileArn || readActiveProfileArnFromKiroCli()
+        if (!profileArn && isIdc) {
+          // kiro-cli can transiently lack `api.codewhisperer.profile` (e.g. right after a
+          // self-update/migration). Importing without a profileArn would create a placeholder
+          // account that CodeWhisperer rejects with "400: profileArn is required" and mark the
+          // real account stale. Reuse the last known ARN for the same IDC start URL instead.
+          const cliStartUrl = data.start_url || data.startUrl
+          const known = kiroDb
+            .getAccounts()
+            .find(
+              (a: any) =>
+                a.auth_method === 'idc' &&
+                typeof a.profile_arn === 'string' &&
+                a.profile_arn &&
+                (!cliStartUrl || a.start_url === cliStartUrl)
+            )
+          if (known) {
+            profileArn = known.profile_arn
+            logger.warn('Kiro CLI sync: no active profile in kiro-cli; reusing known profileArn')
+          }
+        }
         // serviceRegion wins over data.region: kiro-cli stores data.region as the
         // OIDC region (often us-east-1) regardless of where the account actually lives.
         const serviceRegion = extractRegionFromArn(profileArn) || normalizeRegion(data.region)
