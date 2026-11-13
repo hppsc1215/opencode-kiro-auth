@@ -29,12 +29,28 @@ export interface KiroServerInstance {
   close: () => Promise<void>
 }
 
-let activeInstance: KiroServerInstance | null = null
-let activeRefs = 0
-let startingPromise: Promise<KiroServerInstance> | null = null
-let currentRequestHandler: RequestHandler | null = null
-let currentModelRegistry: Record<string, any> = {}
-let currentShowToast: ((message: string, variant: string) => void) | undefined
+interface ProxyState {
+  activeInstance: KiroServerInstance | null
+  activeRefs: number
+  startingPromise: Promise<KiroServerInstance> | null
+  currentRequestHandler: RequestHandler | null
+  currentModelRegistry: Record<string, any>
+  currentShowToast: ((message: string, variant: string) => void) | undefined
+}
+
+// OpenCode V2 loads a fresh copy of this module for every location (directory)
+// instance, while the provider registry - and therefore the advertised baseURL -
+// is shared process-wide. Keep the proxy state on globalThis so all module copies
+// in one process share a single server instead of each binding its own port.
+const STATE_KEY = Symbol.for('opencode-kiro-auth.proxy-state')
+const state: ProxyState = ((globalThis as any)[STATE_KEY] ??= {
+  activeInstance: null,
+  activeRefs: 0,
+  startingPromise: null,
+  currentRequestHandler: null,
+  currentModelRegistry: {},
+  currentShowToast: undefined
+} satisfies ProxyState)
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -56,16 +72,16 @@ function createInstanceHandle(instance: KiroServerInstance): KiroServerInstance 
     close: async () => {
       if (closedThisInstance) return
       closedThisInstance = true
-      activeRefs = Math.max(0, activeRefs - 1)
-      if (activeRefs === 0 && instance.server) {
+      state.activeRefs = Math.max(0, state.activeRefs - 1)
+      if (state.activeRefs === 0 && instance.server) {
         if (typeof (instance.server as any).closeAllConnections === 'function') {
           ;(instance.server as any).closeAllConnections()
         }
         await new Promise<void>((resolve) => {
           instance.server.close(() => {
-            if (activeInstance === instance) {
-              activeInstance = null
-              startingPromise = null
+            if (state.activeInstance === instance) {
+              state.activeInstance = null
+              state.startingPromise = null
             }
             resolve()
           })
@@ -86,18 +102,18 @@ function createInstanceHandle(instance: KiroServerInstance): KiroServerInstance 
  * - Ref-counted singleton lifecycle: handles per-caller cleanup safely without premature shutdown.
  */
 export async function startKiroServer(options: KiroServerOptions): Promise<KiroServerInstance> {
-  currentRequestHandler = options.requestHandler
-  currentModelRegistry = options.modelRegistry
-  currentShowToast = options.showToast
+  state.currentRequestHandler = options.requestHandler
+  state.currentModelRegistry = options.modelRegistry
+  state.currentShowToast = options.showToast
 
-  if (activeInstance && activeInstance.server) {
-    activeRefs++
-    return createInstanceHandle(activeInstance)
+  if (state.activeInstance && state.activeInstance.server) {
+    state.activeRefs++
+    return createInstanceHandle(state.activeInstance)
   }
 
-  if (startingPromise) {
-    const instance = await startingPromise
-    activeRefs++
+  if (state.startingPromise) {
+    const instance = await state.startingPromise
+    state.activeRefs++
     return createInstanceHandle(instance)
   }
 
@@ -106,7 +122,7 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
   const token =
     options.authToken || (process.env.KIRO_PROXY_TOKEN ? process.env.KIRO_PROXY_TOKEN.trim() : '')
 
-  startingPromise = (async () => {
+  state.startingPromise = (async () => {
     const server = http.createServer(async (req, res) => {
       const host = req.headers.host || ''
       const hostname = host.split(':')[0]
@@ -155,7 +171,7 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
       }
 
       if (req.method === 'GET' && (url.pathname === '/v1/models' || url.pathname === '/models')) {
-        const registry = currentModelRegistry || options.modelRegistry
+        const registry = state.currentModelRegistry || options.modelRegistry
         const data = Object.entries(registry).map(([id, info]: [string, any]) => ({
           id,
           object: 'model',
@@ -195,9 +211,11 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
           if (totalSize > MAX_BODY_SIZE) return
           const bodyStr = Buffer.concat(chunks).toString('utf-8')
           try {
-            const handler = currentRequestHandler || options.requestHandler
+            const handler = state.currentRequestHandler || options.requestHandler
             const showToast =
-              currentShowToast || options.showToast || ((msg, v) => logger.info(`[${v}] ${msg}`))
+              state.currentShowToast ||
+              options.showToast ||
+              ((msg, v) => logger.info(`[${v}] ${msg}`))
             const response = await handler.handle(
               url.toString(),
               {
@@ -304,6 +322,8 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
       server.listen(preferredPort, '127.0.0.1')
     })
 
+    // Never keep the host process alive just because the proxy is listening.
+    server.unref()
     logger.info(`Kiro proxy server listening on http://127.0.0.1:${port}`)
 
     const rawInstance: KiroServerInstance = {
@@ -313,13 +333,13 @@ export async function startKiroServer(options: KiroServerOptions): Promise<KiroS
       close: async () => {}
     }
 
-    activeInstance = rawInstance
-    activeRefs = 1
+    state.activeInstance = rawInstance
+    state.activeRefs = 1
     return createInstanceHandle(rawInstance)
   })().catch((err) => {
-    startingPromise = null
+    state.startingPromise = null
     throw err
   })
 
-  return startingPromise
+  return state.startingPromise
 }

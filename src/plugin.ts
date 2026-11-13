@@ -180,10 +180,13 @@ export const kiroPluginV2 = Plugin.define({
 
     logger.info(`Kiro plugin v2 loaded successfully with baseURL: ${baseURL}`)
 
-    // Cleanup when plugin unloads
+    // Cleanup when the location instance unloads. OpenCode evicts idle location
+    // instances, but the `kiro` provider (with this baseURL) stays registered
+    // process-wide, so closing the proxy here makes every later request in this
+    // process fail with ECONNREFUSED. The proxy is a process-wide singleton and is
+    // unref()'d, so it never keeps the process alive; leave it running.
     return async () => {
-      logger.info('Unloading Kiro plugin v2...')
-      await serverInstance.close()
+      logger.info('Unloading Kiro plugin v2 (proxy kept alive for the process)...')
     }
   }
 })
