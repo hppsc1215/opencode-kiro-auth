@@ -176,7 +176,8 @@ export class RequestHandler {
           model,
           sdkPrep.conversationId,
           sdkPrep.streaming,
-          sdkPrep.toolNameMap
+          sdkPrep.toolNameMap,
+          sdkPrep.placeholderToolName
         )
       } catch (e: any) {
         const httpStatus = e?.$metadata?.httpStatusCode

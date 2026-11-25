@@ -114,6 +114,8 @@ export interface PreparedRequest {
   effectiveModel: string
   conversationId: string
   toolNameMap?: ToolNameMap
+  /** Inert tool injected for a tool-less request; calls to it must not reach the client. */
+  placeholderToolName?: string
 }
 
 export interface SdkPreparedRequest {
@@ -124,6 +126,8 @@ export interface SdkPreparedRequest {
   conversationId: string
   region: string
   toolNameMap?: ToolNameMap
+  /** Inert tool injected for a tool-less request; calls to it must not reach the client. */
+  placeholderToolName?: string
   /** Resolved effort level for thinking models */
   effort?: Effort
 }

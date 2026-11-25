@@ -1,3 +1,4 @@
+import { isPlaceholderToolCall } from '../../infrastructure/transformers/tool-less-refusal.js'
 import { restoreToolName } from '../../infrastructure/transformers/tool-transformer.js'
 import { parseEventStream } from '../../plugin/response'
 import { transformKiroStream } from '../../plugin/streaming/index.js'
@@ -16,12 +17,19 @@ export class ResponseHandler {
     model: string,
     conversationId: string,
     streaming: boolean,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
     if (streaming) {
-      return this.handleStreaming(response, model, conversationId, toolNameMap)
+      return this.handleStreaming(response, model, conversationId, toolNameMap, placeholderToolName)
     }
-    return this.handleNonStreaming(response, model, conversationId, toolNameMap)
+    return this.handleNonStreaming(
+      response,
+      model,
+      conversationId,
+      toolNameMap,
+      placeholderToolName
+    )
   }
 
   async handleSdkSuccess(
@@ -29,21 +37,35 @@ export class ResponseHandler {
     model: string,
     conversationId: string,
     streaming: boolean,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
     if (streaming) {
-      return this.handleSdkStreaming(sdkResponse, model, conversationId, toolNameMap)
+      return this.handleSdkStreaming(
+        sdkResponse,
+        model,
+        conversationId,
+        toolNameMap,
+        placeholderToolName
+      )
     }
-    return this.handleSdkNonStreaming(sdkResponse, model, conversationId, toolNameMap)
+    return this.handleSdkNonStreaming(
+      sdkResponse,
+      model,
+      conversationId,
+      toolNameMap,
+      placeholderToolName
+    )
   }
 
   private async handleStreaming(
     response: Response,
     model: string,
     conversationId: string,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
-    const s = transformKiroStream(response, model, conversationId, toolNameMap)
+    const s = transformKiroStream(response, model, conversationId, toolNameMap, placeholderToolName)
     return new Response(
       new ReadableStream({
         async start(c) {
@@ -65,9 +87,16 @@ export class ResponseHandler {
     sdkResponse: any,
     model: string,
     conversationId: string,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
-    const s = transformSdkStream(sdkResponse, model, conversationId, toolNameMap)
+    const s = transformSdkStream(
+      sdkResponse,
+      model,
+      conversationId,
+      toolNameMap,
+      placeholderToolName
+    )
     return new Response(
       new ReadableStream({
         async start(c) {
@@ -89,10 +118,11 @@ export class ResponseHandler {
     response: Response,
     model: string,
     conversationId: string,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
     const text = await response.text()
-    const p = parseEventStream(text, model)
+    const p = parseEventStream(text, model, placeholderToolName)
     const oai: any = {
       id: conversationId,
       object: 'chat.completion',
@@ -138,7 +168,8 @@ export class ResponseHandler {
     sdkResponse: any,
     model: string,
     conversationId: string,
-    toolNameMap?: ToolNameMap
+    toolNameMap?: ToolNameMap,
+    placeholderToolName?: string
   ): Promise<Response> {
     // For non-streaming SDK responses, collect all events
     let content = ''
@@ -196,6 +227,7 @@ export class ResponseHandler {
         (toolCall): toolCall is AccumulatedToolCall & { name: string } =>
           typeof toolCall?.name === 'string'
       )
+      .filter((toolCall) => !isPlaceholderToolCall(toolCall.name, placeholderToolName))
 
     const oai: any = {
       id: conversationId,
