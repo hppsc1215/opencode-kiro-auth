@@ -1,5 +1,7 @@
 import { parseBracketToolCalls } from '../../infrastructure/transformers/tool-call-parser.js'
+import { isPlaceholderToolCall } from '../../infrastructure/transformers/tool-less-refusal.js'
 import { restoreToolName } from '../../infrastructure/transformers/tool-transformer.js'
+import * as logger from '../logger.js'
 import { getContextWindowSize } from '../models.js'
 import { estimateTokens } from '../response.js'
 import type { ToolNameMap } from '../types.js'
@@ -12,7 +14,8 @@ export async function* transformKiroStream(
   response: Response,
   model: string,
   conversationId: string,
-  toolNameMap?: ToolNameMap
+  toolNameMap?: ToolNameMap,
+  placeholderToolName?: string
 ): AsyncGenerator<any> {
   const thinkingRequested = true
 
@@ -236,10 +239,19 @@ export async function* transformKiroStream(
       }
     }
 
-    if (toolCalls.length > 0) {
+    const visibleToolCalls = toolCalls.filter(
+      (toolCall) => !isPlaceholderToolCall(toolCall.name, placeholderToolName)
+    )
+    if (visibleToolCalls.length !== toolCalls.length && !textOnlyContent.trim()) {
+      logger.warn(
+        `Kiro called the ${placeholderToolName} placeholder without producing text; the response is empty`
+      )
+    }
+
+    if (visibleToolCalls.length > 0) {
       const baseIndex = streamState.nextBlockIndex
-      for (let i = 0; i < toolCalls.length; i++) {
-        const tc = toolCalls[i]
+      for (let i = 0; i < visibleToolCalls.length; i++) {
+        const tc = visibleToolCalls[i]
         if (!tc) continue
 
         const blockIndex = baseIndex + i
@@ -309,7 +321,7 @@ export async function* transformKiroStream(
       const _c = convertToOpenAI(
         {
           type: 'message_delta',
-          delta: { stop_reason: toolCalls.length > 0 ? 'tool_use' : 'end_turn' },
+          delta: { stop_reason: visibleToolCalls.length > 0 ? 'tool_use' : 'end_turn' },
           // The non-SDK (raw HTTP) event stream carries only
           // `contextUsagePercentage` — no per-request token usage is exposed, so
           // cache read/write totals remain 0 here. Only the SDK path can report

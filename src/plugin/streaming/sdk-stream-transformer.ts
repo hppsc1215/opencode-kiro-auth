@@ -1,5 +1,7 @@
 import { parseBracketToolCalls } from '../../infrastructure/transformers/tool-call-parser.js'
+import { isPlaceholderToolCall } from '../../infrastructure/transformers/tool-less-refusal.js'
 import { restoreToolName } from '../../infrastructure/transformers/tool-transformer.js'
+import * as logger from '../logger.js'
 import { getContextWindowSize } from '../models.js'
 import { estimateTokens } from '../response.js'
 import type { ToolNameMap } from '../types.js'
@@ -18,7 +20,8 @@ export async function* transformSdkStream(
   sdkResponse: any,
   model: string,
   conversationId: string,
-  toolNameMap?: ToolNameMap
+  toolNameMap?: ToolNameMap,
+  placeholderToolName?: string
 ): AsyncGenerator<any> {
   const thinkingRequested = true
 
@@ -203,9 +206,17 @@ export async function* transformSdkStream(
       }
     }
 
-    const toolCalls = toolCallOrder
+    const bufferedToolCalls = toolCallOrder
       .map((toolUseId) => toolCallFragments.get(toolUseId))
       .filter((toolCall): toolCall is ToolCallState => typeof toolCall?.name === 'string')
+    const toolCalls = bufferedToolCalls.filter(
+      (toolCall) => !isPlaceholderToolCall(toolCall.name, placeholderToolName)
+    )
+    if (toolCalls.length !== bufferedToolCalls.length && !textOnlyContent.trim()) {
+      logger.warn(
+        `Kiro called the ${placeholderToolName} placeholder without producing text; the response is empty`
+      )
+    }
 
     if (thinkingRequested && streamState.buffer) {
       if (streamState.inThinking) {

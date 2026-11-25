@@ -1,5 +1,5 @@
 import * as crypto from 'crypto'
-import { KIRO_CONSTANTS, buildUrl, extractRegionFromArn } from '../constants.js'
+import { buildUrl, extractRegionFromArn, KIRO_CONSTANTS } from '../constants.js'
 import {
   buildHistory,
   extractToolNamesFromHistory,
@@ -11,6 +11,11 @@ import {
   getContentText,
   mergeAdjacentMessages
 } from '../infrastructure/transformers/message-transformer.js'
+import {
+  buildPlaceholderToolSpec,
+  KIRO_PLACEHOLDER_TOOL_NAME,
+  requiresToolSpecification
+} from '../infrastructure/transformers/tool-less-refusal.js'
 import {
   convertToolsToCodeWhisperer,
   createToolNameRegistry,
@@ -38,6 +43,8 @@ interface TransformResult {
   resolved: string
   convId: string
   toolNameMap: ToolNameMap
+  /** Set when an inert tool was injected for a tool-less request; its calls are dropped. */
+  placeholderToolName?: string
 }
 
 interface EffortConfig {
@@ -258,6 +265,7 @@ function buildCodeWhispererRequest(
   }
   if (history.length > 0) (request.conversationState as any).history = history
 
+  let placeholderToolName: string | undefined
   const uim = request.conversationState.currentMessage.userInputMessage
   if (uim) {
     uim.content = curContent
@@ -290,9 +298,26 @@ function buildCodeWhispererRequest(
         }
       }
     }
+
+    // claude-haiku-5.5 rejects every request whose current message carries no tool
+    // schema: HTTP 200, stopReason CONTENT_FILTERED and no content. An empty
+    // `tools: []` is not enough. Helper calls (title generation, image description,
+    // plain JSON tasks) come without tools, so ride one inert tool along. Responses
+    // drop calls to it, so the client never sees an undeclared tool.
+    if (requiresToolSpecification(resolved) && !uim.userInputMessageContext?.tools?.length) {
+      if (!uim.userInputMessageContext) uim.userInputMessageContext = {}
+      uim.userInputMessageContext.tools = [buildPlaceholderToolSpec()]
+      placeholderToolName = KIRO_PLACEHOLDER_TOOL_NAME
+    }
   }
 
-  return { request, resolved, convId, toolNameMap: toolNameRegistry.toOriginalMap() }
+  return {
+    request,
+    resolved,
+    convId,
+    toolNameMap: toolNameRegistry.toOriginalMap(),
+    placeholderToolName
+  }
 }
 
 export function transformToCodeWhisperer(
@@ -303,7 +328,7 @@ export function transformToCodeWhisperer(
   think = false,
   budget = 20000
 ): PreparedRequest {
-  const { request, resolved, convId, toolNameMap } = buildCodeWhispererRequest(
+  const { request, resolved, convId, toolNameMap, placeholderToolName } = buildCodeWhispererRequest(
     body,
     model,
     auth,
@@ -331,7 +356,8 @@ export function transformToCodeWhisperer(
     streaming: true,
     effectiveModel: resolved,
     conversationId: convId,
-    toolNameMap
+    toolNameMap,
+    placeholderToolName
   }
 }
 
@@ -344,7 +370,7 @@ export function transformToSdkRequest(
   showToast?: ToastFunction,
   effortConfig?: EffortConfig
 ): SdkPreparedRequest {
-  const { request, resolved, convId, toolNameMap } = buildCodeWhispererRequest(
+  const { request, resolved, convId, toolNameMap, placeholderToolName } = buildCodeWhispererRequest(
     body,
     model,
     auth,
@@ -370,6 +396,7 @@ export function transformToSdkRequest(
     conversationId: convId,
     region: extractRegionFromArn(auth.profileArn) ?? auth.region,
     toolNameMap,
+    placeholderToolName,
     effort
   }
 }

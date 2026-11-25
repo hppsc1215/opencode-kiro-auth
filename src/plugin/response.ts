@@ -4,10 +4,15 @@ import {
   deduplicateToolCalls,
   parseBracketToolCalls
 } from '../infrastructure/transformers/tool-call-parser.js'
+import { isPlaceholderToolCall } from '../infrastructure/transformers/tool-less-refusal.js'
 import { getContextWindowSize } from './models.js'
 import { ParsedResponse, ToolCall } from './types'
 
-export function parseEventStream(rawResponse: string, model?: string): ParsedResponse {
+export function parseEventStream(
+  rawResponse: string,
+  model?: string,
+  placeholderToolName?: string
+): ParsedResponse {
   const parsedFromEvents = parseEventStreamChunk(rawResponse, model)
   let fullResponseText = parsedFromEvents.content
   let allToolCalls = [...parsedFromEvents.toolCalls]
@@ -23,10 +28,17 @@ export function parseEventStream(rawResponse: string, model?: string): ParsedRes
     fullResponseText = cleanToolCallsFromText(fullResponseText, uniqueToolCalls)
   }
 
+  const toolCalls = uniqueToolCalls.filter(
+    (toolCall) => !isPlaceholderToolCall(toolCall.name, placeholderToolName)
+  )
+
   return {
     content: fullResponseText,
-    toolCalls: uniqueToolCalls,
-    stopReason: parsedFromEvents.stopReason,
+    toolCalls,
+    stopReason:
+      parsedFromEvents.stopReason === 'tool_use' && toolCalls.length === 0
+        ? 'end_turn'
+        : parsedFromEvents.stopReason,
     inputTokens: parsedFromEvents.inputTokens,
     outputTokens: parsedFromEvents.outputTokens
   }
